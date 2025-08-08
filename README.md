@@ -26,6 +26,35 @@ Simulamos um cenário real de atendimento ao cliente:
 
 ---
 
+## 💼 Impacto Financeiro Estimado
+
+Este chatbot de perguntas e respostas tem potencial para gerar uma **redução significativa nos custos operacionais** do atendimento ao cliente, ao automatizar a resposta de dúvidas frequentes sobre o cartão Platinum.
+
+Considerando um cenário com:
+
+- **10.000 atendimentos mensais** atualmente realizados por agentes humanos;
+- **Custo médio de R$ 10,00 por atendimento** (salários, infraestrutura e outros custos operacionais);
+
+Estimamos que a automação proporcionada pelo chatbot possa reduzir os **atendimentos humanos** em até  até **30%**, o que resultaria em:
+
+- **Redução de aproximadamente R$ 30.000,00 por mês** em custos operacionais;
+- **Economia anual estimada em R$ 360.000,00**, liberando recursos para investimentos estratégicos.
+
+Além do impacto financeiro, a solução também oferece:
+
+- Atendimento 24/7 com respostas rápidas e precisas;
+- Melhoria da experiência do cliente com suporte consistente;
+- Liberação da equipe humana para focar em demandas mais complexas e estratégicas.
+
+
+
+
+
+
+
+
+
+---
 ## ⚙️ Tecnologias Utilizadas
 
 - `transformers` (Hugging Face)
