@@ -1,7 +1,8 @@
-streamlit==1.28.0
-langchain==0.1.232
-faiss-cpu==1.7.4
-transformers==4.42.0
-sentence-transformers==2.2.2
-PyPDF2==3.1.0
-huggingface-hub==0.16.4
+"unstructured[all-docs]"
+langchain_community
+langchain-openai
+langchain-text-splitters 
+tiktoken
+streamlit 
+faiss-cpu 
+langchainhub
