@@ -1,33 +1,34 @@
 # type: ignore
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai.embeddings import OpenAIEmbeddings
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_community.vectorstores import FAISS 
-from langchain_openai.chat_models import ChatOpenAI
-from unstructured.partition.auto import partition
-from langchain import hub
+import os
+import logging
 from dotenv import load_dotenv
 import streamlit as st
-import logging
-import os
+from pypdf import PdfReader
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai.embeddings import OpenAIEmbeddings
+from langchain_openai.chat_models import ChatOpenAI
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_community.vectorstores import Chroma
+from langchain import hub
 
 load_dotenv()
 
-# Prompt adapted for fintech
+# Fintech adapted RAG prompt
 prompt = hub.pull("rlm/rag-prompt")
 llm = ChatOpenAI(temperature=0.6, model="gpt-4o-mini")
 
-# Load and extract text from PDFs, DOCX, PPTX, TXT
+# Load text from PDFs
 def load_documents(file_paths):
     all_text = []
     for file in file_paths:
-        elements = partition(filename=file)
-        text_elements = [element.text for element in elements if element.text]
-        all_text.append("\n\n".join(text_elements))
+        reader = PdfReader(file)
+        text = "\n\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        all_text.append(text)
     return "\n\n".join(all_text)
 
-# Split a long text into smaller chunks
+# Split into chunks
 def split_text(text: str):
     text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
         chunk_size=1000,
@@ -35,17 +36,21 @@ def split_text(text: str):
     )
     return text_splitter.split_text(text)
 
-# Create embeddings and vectorstore
+# Create embeddings and Chroma vectorstore
 def get_vectorstore(chunks):
     embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.from_texts(texts=chunks, embedding=embeddings)
+    vectorstore = Chroma.from_texts(
+        texts=chunks,
+        embedding=embeddings,
+        persist_directory=".chromadb"  # persisted locally
+    )
     return vectorstore
 
-# Format retrieved docs into a string
+# Format retrieved docs
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-# Build and run RAG chain
+# Build RAG chain
 def rag_chain(vectorstore, question):
     qa_chain = (
         {
@@ -58,25 +63,22 @@ def rag_chain(vectorstore, question):
     )
     return qa_chain.invoke(question)
 
-# Temporary file path for uploaded docs
+# Save temp file
 def _get_file_path(file_upload):
     temp_dir = "temp"
     os.makedirs(temp_dir, exist_ok=True)
-    if isinstance(file_upload, str):
-        return file_upload
-    else:
-        file_path = os.path.join(temp_dir, file_upload.name)
-        with open(file_path, "wb") as f:
-            f.write(file_upload.getbuffer())
-        return file_path
+    file_path = os.path.join(temp_dir, file_upload.name)
+    with open(file_path, "wb") as f:
+        f.write(file_upload.getbuffer())
+    return file_path
 
-# Main Streamlit app
+# Main app
 def main():
     st.set_page_config(page_title="💳 Fintech Knowledge Chatbot", layout="wide")
     st.title("💳 Fintech Knowledge Chatbot")
     st.markdown(
-        "Welcome! Ask questions about cards, investments, and other fintech products and services.\n"
-        "You can also upload PDFs, DOCX, PPTX, or TXT files containing additional information."
+        "Welcome! Ask questions about cards, investments, and other fintech services.\n\n"
+        "📂 You can also upload **PDFs** with domain knowledge."
     )
     logging.info("App started")
 
@@ -85,15 +87,16 @@ def main():
             {
                 "role": "assistant",
                 "content": (
-                    "Hello! I'm your fintech assistant. I can help answer questions about cards, investments, and other financial products."
+                    "Hello! I'm your fintech assistant. "
+                    "Upload documents and ask me anything about financial products."
                 )
             }
         ]
 
     # File uploader
     file_upload = st.sidebar.file_uploader(
-        label="Upload Fintech Documents (PDF, DOCX, PPTX, TXT)",
-        type=["pdf", "docx", "pptx","txt"], 
+        label="Upload Fintech Documents (PDF only for now)",
+        type=["pdf"], 
         accept_multiple_files=True,
         key="file_uploader"
     )
@@ -101,7 +104,7 @@ def main():
     if file_upload:     
         st.success("File(s) uploaded successfully! You can now ask your question.")
 
-    # Display existing messages
+    # Display messages
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -123,7 +126,10 @@ def main():
                     vectorstore = get_vectorstore(chunked_text)
                     assistant_reply = rag_chain(vectorstore, user_prompt)
                 else:
-                    assistant_reply = "Please upload fintech documents so I can answer based on available content."
+                    assistant_reply = (
+                        "Please upload at least one fintech document "
+                        "so I can answer based on real content."
+                    )
 
                 st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
                 st.markdown(assistant_reply)
@@ -131,8 +137,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-
-if __name__ == '__main__':
-    main()
 
