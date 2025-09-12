@@ -1,16 +1,14 @@
 import streamlit as st
 from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores import FAISS
-from langchain.embeddings import LlamaCppEmbeddings
-from langchain.llms import LlamaCpp
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.memory import ConversationBufferMemory
+from langchain_groq import ChatGroq
+from langchain.embeddings import HuggingFaceEmbeddings
 
 # -----------------------------
-# Fintech manual content (pre-loaded)
+# Fintech domain knowledge (pre-loaded manual)
 # -----------------------------
-# This is the domain knowledge of our chatbot.
-# It includes credit card info, investment products, security, and support.
 FINTECH_MANUAL = """
 Introduction:
 Welcome to our Fintech! We are committed to revolutionizing the way you manage your money.
@@ -42,78 +40,64 @@ Investments: dividend & capital gains, diversified portfolio, regulated market.
 """
 
 # -----------------------------
-# Streamlit UI setup
+# Streamlit page config
 # -----------------------------
-# Configure the web app page and display title
 st.set_page_config(page_title="Fintech Chatbot", page_icon="💳", layout="wide")
-st.title("💳 Fintech Specialized RAG Agent (Ready-to-Use)")
+st.title("💳 Fintech Specialized RAG Agent (Groq + Streamlit)")
 
 # -----------------------------
-# Split the manual into chunks
+# Text splitting & embeddings
 # -----------------------------
-# Text splitter divides large text into smaller pieces for embedding
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+# Split fintech manual into chunks for semantic search
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
 chunks = text_splitter.split_text(FINTECH_MANUAL)
 
-# -----------------------------
-# Initialize embeddings and LLaMA LLM
-# -----------------------------
-# Provide the path to your LLaMA model file
-llama_model_path = "path_to_your_llama_model/llama-13b-4bit.gguf"  # replace with your model path
+# HuggingFace embeddings (lightweight, works in Cloud)
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# Create embeddings model (converts text into vector representations)
-embeddings_model = LlamaCppEmbeddings(model_path=llama_model_path)
-
-# Create vectorstore using FAISS (stores embeddings and enables semantic search)
-vectorstore = FAISS.from_texts(chunks, embeddings_model)
-
-# Create a retriever to search within the vectorstore
+# Create FAISS vectorstore from fintech chunks
+vectorstore = FAISS.from_texts(chunks, embeddings)
 retriever = vectorstore.as_retriever()
 
-# Initialize the LLaMA language model for generation
-llm = LlamaCpp(model_path=llama_model_path, n_ctx=2048, temperature=0.3)
+# -----------------------------
+# Groq LLaMA 3 LLM setup
+# -----------------------------
+# You need to set your GROQ_API_KEY in Streamlit Cloud secrets
+# (Settings > Secrets > add GROQ_API_KEY)
+llm = ChatGroq(model="llama3-8b-8192", temperature=0.3)
 
 # -----------------------------
-# Conversation memory
+# Memory for conversation
 # -----------------------------
-# Stores chat history to provide context-aware responses
 memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
 # -----------------------------
-# Prompt engineering function
+# Prompt engineering
 # -----------------------------
-# Creates a custom prompt for the LLaMA model
-# Instructs the model to answer clearly and adaptively based on the question
-def create_prompt(user_query):
+def create_prompt(user_query: str) -> str:
     return f"""
-You are an expert assistant specialized in our Fintech products.
-Use the provided information to answer the user's query accurately and clearly.
-Provide concise but informative answers, adapting style based on the question.
+You are a helpful and specialized assistant for our Fintech company.
+You must use the given context to answer user questions about our credit card and investment products.
+Always explain clearly, concisely, and with professional tone.
 User question: {user_query}
 Answer:
 """
 
 # -----------------------------
-# Create the RAG chain
+# Conversational RAG chain
 # -----------------------------
-# Combines retrieval of relevant chunks and generation of answers with memory
 qa_chain = ConversationalRetrievalChain.from_llm(
     llm=llm,
     retriever=retriever,
     memory=memory,
-    combine_docs_chain_kwargs={"prompt": create_prompt("")}  # initial prompt template
+    combine_docs_chain_kwargs={"prompt": create_prompt("")}
 )
 
 # -----------------------------
-# User input and interaction
+# User interaction
 # -----------------------------
-# Streamlit text input for user questions
 user_input = st.text_input("Ask your question about our Fintech products:")
 
-# Process the user's question
 if user_input:
-    # Run the RAG chain to generate an answer based on internal manual
     response = qa_chain.run(user_input)
-    
-    # Display the answer in Streamlit
     st.markdown(f"**Answer:** {response}")
