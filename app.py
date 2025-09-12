@@ -11,49 +11,41 @@ from dotenv import load_dotenv
 import streamlit as st
 import logging
 import os
+
 load_dotenv()
 
-
-
+# Prompt adapted for fintech
 prompt = hub.pull("rlm/rag-prompt")
 llm = ChatOpenAI(temperature=0.6, model="gpt-4o-mini")
 
-
-# Load and extract text from one or multiple PDF/docx/pptx/txt files.
+# Load and extract text from PDFs, DOCX, PPTX, TXT
 def load_documents(file_paths):
     all_text = []
     for file in file_paths:
         elements = partition(filename=file)
-        text_elements = [element.text for element in elements]
+        text_elements = [element.text for element in elements if element.text]
         all_text.append("\n\n".join(text_elements))
-        
-    print(all_text)
     return "\n\n".join(all_text)
 
-
-# Split a long text into smaller chunks, uses token-based splitting.
+# Split a long text into smaller chunks
 def split_text(text: str):
     text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-    chunk_size=1000,
-    chunk_overlap=300,
+        chunk_size=1000,
+        chunk_overlap=300,
     )
-    print(text_splitter)
     return text_splitter.split_text(text)
 
-
-# create embeddings and load chunks to vector stores
+# Create embeddings and vectorstore
 def get_vectorstore(chunks):
     embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_texts(texts=chunks, embedding=embeddings)
     return vectorstore
 
-
-# Format retrieved documents into a single string
+# Format retrieved docs into a string
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-
-# Build and run a Retrieval-Augmented Generation (RAG) chain.
+# Build and run RAG chain
 def rag_chain(vectorstore, question):
     qa_chain = (
         {
@@ -64,28 +56,28 @@ def rag_chain(vectorstore, question):
         | llm
         | StrOutputParser()
     )
-
     return qa_chain.invoke(question)
 
-
-# Generate temporary file path of uploaded docs
+# Temporary file path for uploaded docs
 def _get_file_path(file_upload):
-
     temp_dir = "temp"
-    os.makedirs(temp_dir, exist_ok=True)  # Ensure the directory exists
-
+    os.makedirs(temp_dir, exist_ok=True)
     if isinstance(file_upload, str):
-        file_path = file_upload  
+        return file_upload
     else:
         file_path = os.path.join(temp_dir, file_upload.name)
         with open(file_path, "wb") as f:
             f.write(file_upload.getbuffer())
         return file_path
 
-
-# Main Streamlit app function
+# Main Streamlit app
 def main():
-    st.title("Chat with Multiple Documents(pdf, docx, ppt, txt)")
+    st.set_page_config(page_title="💳 Fintech Knowledge Chatbot", layout="wide")
+    st.title("💳 Fintech Knowledge Chatbot")
+    st.markdown(
+        "Welcome! Ask questions about cards, investments, and other fintech products and services.\n"
+        "You can also upload PDFs, DOCX, PPTX, or TXT files containing additional information."
+    )
     logging.info("App started")
 
     if 'messages' not in st.session_state:
@@ -93,53 +85,54 @@ def main():
             {
                 "role": "assistant",
                 "content": (
-                    "Hi there! How can I help you today?")
+                    "Hello! I'm your fintech assistant. I can help answer questions about cards, investments, and other financial products."
+                )
             }
         ]
 
-
- 
+    # File uploader
     file_upload = st.sidebar.file_uploader(
-    label="Upload", type=["pdf", "docx", "pptx","txt"], 
-    accept_multiple_files=True,
-    key="pdf_uploader"
+        label="Upload Fintech Documents (PDF, DOCX, PPTX, TXT)",
+        type=["pdf", "docx", "pptx","txt"], 
+        accept_multiple_files=True,
+        key="file_uploader"
     )
 
     if file_upload:     
-        st.success("File uploaded successfully! You can now ask your question.")
-
-
+        st.success("File(s) uploaded successfully! You can now ask your question.")
 
     # Display existing messages
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
     
-    user_prompt = st.chat_input("Your question")
+    user_prompt = st.chat_input("Enter your question about the fintech")
 
-    # For user message
     if user_prompt:
         st.session_state.messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user"):
             st.markdown(user_prompt)
 
-        # Stream assistant response
         with st.chat_message("assistant"):
             logging.info("Generating response...")
             with st.spinner("Processing..."): 
-                
- 
-                file_paths = [_get_file_path(f) for f in file_upload]
-                text = load_documents(file_paths)
-                chunked_text = split_text(text)
-                vectorstores = get_vectorstore(chunked_text)
-                assistant_reply = rag_chain(vectorstores, user_prompt)
+                if file_upload:
+                    file_paths = [_get_file_path(f) for f in file_upload]
+                    text = load_documents(file_paths)
+                    chunked_text = split_text(text)
+                    vectorstore = get_vectorstore(chunked_text)
+                    assistant_reply = rag_chain(vectorstore, user_prompt)
+                else:
+                    assistant_reply = "Please upload fintech documents so I can answer based on available content."
 
                 st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
                 st.markdown(assistant_reply)
 
+if __name__ == '__main__':
+    main()
 
 
 
 if __name__ == '__main__':
     main()
+
