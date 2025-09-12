@@ -1,4 +1,6 @@
-streamlit>=1.30.0
-langchain>=0.1.0
-llama-cpp-python>=0.1.82
-faiss-cpu>=1.7.4
+streamlit
+langchain
+langchain-community
+langchain-groq
+faiss-cpu
+sentence-transformers
