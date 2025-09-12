@@ -1,82 +1,145 @@
+# type: ignore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai.embeddings import OpenAIEmbeddings
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_community.vectorstores import FAISS 
+from langchain_openai.chat_models import ChatOpenAI
+from unstructured.partition.auto import partition
+from langchain import hub
+from dotenv import load_dotenv
 import streamlit as st
-from langchain.vectorstores import FAISS
-from langchain.embeddings.huggingface import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
-from langchain.chat_models import HuggingFaceHub
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.document_loaders import PyPDFLoader
-import tempfile
+import logging
 import os
+load_dotenv()
 
-st.set_page_config(page_title="💳 Chatbot Fintech RAG - Free API", layout="wide")
-st.title("💳 Chatbot Fintech RAG Interativo (API Gratuita)")
 
-# --- Histórico de conversa ---
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
 
-if "vectorstore" not in st.session_state:
-    st.session_state.vectorstore = None
+prompt = hub.pull("rlm/rag-prompt")
+llm = ChatOpenAI(temperature=0.6, model="gpt-4o-mini")
 
-# --- Função para processar PDFs ---
-def process_pdf(file):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(file.read())
-        tmp_path = tmp.name
-    loader = PyPDFLoader(tmp_path)
-    docs = loader.load()
-    splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    docs_split = splitter.split_documents(docs)
-    return docs_split
 
-# --- Atualizar vetorstore ---
-def update_vectorstore(new_docs):
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    if st.session_state.vectorstore is None:
-        st.session_state.vectorstore = FAISS.from_documents(new_docs, embeddings)
-    else:
-        st.session_state.vectorstore.add_documents(new_docs)
+# Load and extract text from one or multiple PDF/docx/pptx/txt files.
+def load_documents(file_paths):
+    all_text = []
+    for file in file_paths:
+        elements = partition(filename=file)
+        text_elements = [element.text for element in elements]
+        all_text.append("\n\n".join(text_elements))
+        
+    print(all_text)
+    return "\n\n".join(all_text)
 
-# --- Upload PDFs ---
-uploaded_files = st.file_uploader("Envie PDFs da fintech", type=["pdf"], accept_multiple_files=True)
-if uploaded_files:
-    for file in uploaded_files:
-        new_docs = process_pdf(file)
-        update_vectorstore(new_docs)
-    st.success("PDF(s) processado(s) e índice atualizado!")
 
-# --- Configuração do RAG ---
-def get_qa_chain():
-    if st.session_state.vectorstore is None:
-        return None
-    retriever = st.session_state.vectorstore.as_retriever(search_type="similarity", search_kwargs={"k":3})
-    # HuggingFaceHub LLM gratuito (ex: "google/flan-t5-small")
-    llm = HuggingFaceHub(repo_id="google/flan-t5-small", model_kwargs={"temperature":0, "max_length":512})
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=retriever,
-        return_source_documents=True
+# Split a long text into smaller chunks, uses token-based splitting.
+def split_text(text: str):
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+    chunk_size=1000,
+    chunk_overlap=300,
     )
-    return qa_chain
+    print(text_splitter)
+    return text_splitter.split_text(text)
 
-qa_chain = get_qa_chain()
 
-# --- Input do usuário ---
-user_input = st.text_input("Digite sua pergunta sobre a fintech:")
+# create embeddings and load chunks to vector stores
+def get_vectorstore(chunks):
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_texts(texts=chunks, embedding=embeddings)
+    return vectorstore
 
-if user_input and qa_chain:
-    result = qa_chain({"query": user_input})
-    answer = result['result']
-    source_docs = result['source_documents']
 
-    st.session_state.chat_history.append({
-        "user": user_input,
-        "bot": answer,
-        "sources": [doc.metadata.get("source", "Documento") for doc in source_docs]
-    })
+# Format retrieved documents into a single string
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
 
-# --- Exibir histórico ---
-for chat in reversed(st.session_state.chat_history):
-    st.markdown(f"<div style='background-color:#DCF8C6; padding:10px; border-radius:10px; margin-bottom:5px;'><b>Você:</b> {chat['user']}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='background-color:#F1F0F0; padding:10px; border-radius:10px; margin-bottom:5px;'><b>Bot:</b> {chat['bot']}<br><i>Fonte(s): {', '.join(chat['sources'])}</i></div>", unsafe_allow_html=True)
 
+# Build and run a Retrieval-Augmented Generation (RAG) chain.
+def rag_chain(vectorstore, question):
+    qa_chain = (
+        {
+            "context": vectorstore.as_retriever() | format_docs,
+            "question": RunnablePassthrough(),
+        }
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    return qa_chain.invoke(question)
+
+
+# Generate temporary file path of uploaded docs
+def _get_file_path(file_upload):
+
+    temp_dir = "temp"
+    os.makedirs(temp_dir, exist_ok=True)  # Ensure the directory exists
+
+    if isinstance(file_upload, str):
+        file_path = file_upload  
+    else:
+        file_path = os.path.join(temp_dir, file_upload.name)
+        with open(file_path, "wb") as f:
+            f.write(file_upload.getbuffer())
+        return file_path
+
+
+# Main Streamlit app function
+def main():
+    st.title("Chat with Multiple Documents(pdf, docx, ppt, txt)")
+    logging.info("App started")
+
+    if 'messages' not in st.session_state:
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Hi there! How can I help you today?")
+            }
+        ]
+
+
+ 
+    file_upload = st.sidebar.file_uploader(
+    label="Upload", type=["pdf", "docx", "pptx","txt"], 
+    accept_multiple_files=True,
+    key="pdf_uploader"
+    )
+
+    if file_upload:     
+        st.success("File uploaded successfully! You can now ask your question.")
+
+
+
+    # Display existing messages
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+    
+    user_prompt = st.chat_input("Your question")
+
+    # For user message
+    if user_prompt:
+        st.session_state.messages.append({"role": "user", "content": user_prompt})
+        with st.chat_message("user"):
+            st.markdown(user_prompt)
+
+        # Stream assistant response
+        with st.chat_message("assistant"):
+            logging.info("Generating response...")
+            with st.spinner("Processing..."): 
+                
+ 
+                file_paths = [_get_file_path(f) for f in file_upload]
+                text = load_documents(file_paths)
+                chunked_text = split_text(text)
+                vectorstores = get_vectorstore(chunked_text)
+                assistant_reply = rag_chain(vectorstores, user_prompt)
+
+                st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
+                st.markdown(assistant_reply)
+
+
+
+
+if __name__ == '__main__':
+    main()
