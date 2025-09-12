@@ -1,107 +1,83 @@
+# chatbot_fintech_rag_interactive.py
+
 import streamlit as st
-from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.memory import ConversationBufferMemory
-from langchain.llms import HuggingFaceHub
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.chains import RetrievalQA
+from langchain.chat_models import ChatOpenAI
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.document_loaders import PyPDFLoader
+import tempfile
 
-# -----------------------------
-# Fintech Manual (pre-loaded)
-# -----------------------------
-FINTECH_MANUAL = """
-Introduction:
-Welcome to our Fintech! We are committed to revolutionizing the way you manage your money.
-Our platform provides innovative credit card solutions and investment products designed to give
-you financial freedom and growth opportunities.
+# -------- CONFIGURAÇÃO STREAMLIT --------
+st.set_page_config(page_title="💳 Chatbot Fintech RAG Interativo", layout="wide")
+st.title("💳 Chatbot Fintech RAG Interativo")
+st.markdown("Faça perguntas sobre produtos, investimentos e serviços da fintech. Você também pode enviar PDFs em tempo real!")
 
-Credit Card Products:
-Flexible payment options, cashback rewards, advanced security features, mobile app management, 
-spending limits, and real-time transaction tracking.
+# -------- HISTÓRICO DE CONVERSA --------
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
-Investment Products:
-Mutual funds, ETFs, stocks, fixed income products, AI-driven advisory tool, portfolio tailored 
-to financial goals and risk profile.
+if "vectorstore" not in st.session_state:
+    st.session_state.vectorstore = None
 
-Getting Started:
-Download the app, create your account, complete identity verification, apply for credit card 
-or start investing, monitor your wealth via dashboard.
+# -------- FUNÇÃO PARA PROCESSAR PDF --------
+def process_pdf(file):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(file.read())
+        tmp_path = tmp.name
+    loader = PyPDFLoader(tmp_path)
+    docs = loader.load()
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    docs_split = text_splitter.split_documents(docs)
+    return docs_split
 
-Security & Compliance:
-Multi-factor authentication, data encryption, fraud detection systems, comply with international 
-financial regulations.
+# -------- FUNÇÃO PARA ATUALIZAR VETORSTORE --------
+def update_vectorstore(new_docs):
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    if st.session_state.vectorstore is None:
+        st.session_state.vectorstore = FAISS.from_documents(new_docs, embeddings)
+    else:
+        st.session_state.vectorstore.add_documents(new_docs)
 
-Customer Support:
-24/7 support via chat, phone, email, knowledge base with guides and FAQs.
+# -------- UPLOAD DE PDF --------
+uploaded_files = st.file_uploader("Envie PDFs da fintech", type=["pdf"], accept_multiple_files=True)
+if uploaded_files:
+    for file in uploaded_files:
+        new_docs = process_pdf(file)
+        update_vectorstore(new_docs)
+    st.success("PDF(s) processado(s) e índice atualizado!")
 
-Benefits Comparison:
-Credit Card: cashback & points, installments & limits, fraud protection.
-Investments: dividend & capital gains, diversified portfolio, regulated market.
-"""
+# -------- CONFIGURAÇÃO DO RAG --------
+def get_qa_chain():
+    if st.session_state.vectorstore is None:
+        return None
+    retriever = st.session_state.vectorstore.as_retriever(search_type="similarity", search_kwargs={"k":3})
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0),
+        retriever=retriever,
+        return_source_documents=True
+    )
+    return qa_chain
 
-# -----------------------------
-# Streamlit UI
-# -----------------------------
-st.set_page_config(page_title="Fintech Chatbot", page_icon="💳", layout="wide")
-st.title("💳 Fintech Specialized RAG Agent (Hugging Face API)")
+qa_chain = get_qa_chain()
 
-# -----------------------------
-# Split text into chunks for retrieval
-# -----------------------------
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
-chunks = text_splitter.split_text(FINTECH_MANUAL)
+# -------- INPUT DO USUÁRIO --------
+user_input = st.text_input("Digite sua pergunta sobre a fintech:")
 
-# Embeddings (HuggingFace lightweight model)
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+if user_input and qa_chain:
+    result = qa_chain({"query": user_input})
+    answer = result['result']
+    source_docs = result['source_documents']
 
-# FAISS vectorstore for RAG
-vectorstore = FAISS.from_texts(chunks, embeddings)
-retriever = vectorstore.as_retriever()
+    # Adiciona ao histórico
+    st.session_state.chat_history.append({
+        "user": user_input,
+        "bot": answer,
+        "sources": [doc.metadata.get("source", "Documento") for doc in source_docs]
+    })
 
-# -----------------------------
-# Hugging Face API LLM setup
-# -----------------------------
-# Set your HF_API_KEY in Streamlit secrets or environment variable
-# Go to https://huggingface.co/settings/tokens to create a free token
-llm = HuggingFaceHub(
-    repo_id="google/flan-t5-small",  # lightweight free model
-    model_kwargs={"temperature":0.3, "max_new_tokens":256},
-    huggingfacehub_api_token=st.secrets["HF_API_KEY"]  # get from Streamlit secrets
-)
-
-# -----------------------------
-# Conversation memory
-# -----------------------------
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
-# -----------------------------
-# Prompt engineering
-# -----------------------------
-def create_prompt(user_query: str) -> str:
-    return f"""
-You are a specialized Fintech assistant.
-Answer questions based only on the provided Fintech information.
-Explain clearly, concisely, and professionally.
-User question: {user_query}
-Answer:
-"""
-
-# -----------------------------
-# Conversational Retrieval Chain (RAG)
-# -----------------------------
-qa_chain = ConversationalRetrievalChain.from_llm(
-    llm=llm,
-    retriever=retriever,
-    memory=memory,
-    combine_docs_chain_kwargs={"prompt": create_prompt("")}
-)
-
-# -----------------------------
-# User interaction
-# -----------------------------
-user_input = st.text_input("Ask your question about our Fintech products:")
-
-if user_input:
-    response = qa_chain.run(user_input)
-    st.markdown(f"**Answer:** {response}")
-
+# -------- EXIBIÇÃO DO HISTÓRICO --------
+for chat in reversed(st.session_state.chat_history):
+    st.markdown(f"<div style='background-color:#DCF8C6; padding:10px; border-radius:10px; margin-bottom:5px;'><b>Você:</b> {chat['user']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background-color:#F1F0F0; padding:10px; border-radius:10px; margin-bottom:5px;'><b>Bot:</b> {chat['bot']}<br><i>Fonte(s): {', '.join(chat['sources'])}</i></div>", unsafe_allow_html=True)
