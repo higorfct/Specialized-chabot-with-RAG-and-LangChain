@@ -3,11 +3,11 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.memory import ConversationBufferMemory
-from langchain_groq import ChatGroq
+from langchain.llms import HuggingFaceHub
 from langchain.embeddings import HuggingFaceEmbeddings
 
 # -----------------------------
-# Fintech domain knowledge (pre-loaded manual)
+# Fintech Manual (pre-loaded)
 # -----------------------------
 FINTECH_MANUAL = """
 Introduction:
@@ -40,34 +40,37 @@ Investments: dividend & capital gains, diversified portfolio, regulated market.
 """
 
 # -----------------------------
-# Streamlit page config
+# Streamlit UI
 # -----------------------------
 st.set_page_config(page_title="Fintech Chatbot", page_icon="💳", layout="wide")
-st.title("💳 Fintech Specialized RAG Agent (Groq + Streamlit)")
+st.title("💳 Fintech Specialized RAG Agent (Hugging Face API)")
 
 # -----------------------------
-# Text splitting & embeddings
+# Split text into chunks for retrieval
 # -----------------------------
-# Split fintech manual into chunks for semantic search
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
 chunks = text_splitter.split_text(FINTECH_MANUAL)
 
-# HuggingFace embeddings (lightweight, works in Cloud)
+# Embeddings (HuggingFace lightweight model)
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# Create FAISS vectorstore from fintech chunks
+# FAISS vectorstore for RAG
 vectorstore = FAISS.from_texts(chunks, embeddings)
 retriever = vectorstore.as_retriever()
 
 # -----------------------------
-# Groq LLaMA 3 LLM setup
+# Hugging Face API LLM setup
 # -----------------------------
-# You need to set your GROQ_API_KEY in Streamlit Cloud secrets
-# (Settings > Secrets > add GROQ_API_KEY)
-llm = ChatGroq(model="llama3-8b-8192", temperature=0.3)
+# Set your HF_API_KEY in Streamlit secrets or environment variable
+# Go to https://huggingface.co/settings/tokens to create a free token
+llm = HuggingFaceHub(
+    repo_id="google/flan-t5-small",  # lightweight free model
+    model_kwargs={"temperature":0.3, "max_new_tokens":256},
+    huggingfacehub_api_token=st.secrets["HF_API_KEY"]  # get from Streamlit secrets
+)
 
 # -----------------------------
-# Memory for conversation
+# Conversation memory
 # -----------------------------
 memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
@@ -76,15 +79,15 @@ memory = ConversationBufferMemory(memory_key="chat_history", return_messages=Tru
 # -----------------------------
 def create_prompt(user_query: str) -> str:
     return f"""
-You are a helpful and specialized assistant for our Fintech company.
-You must use the given context to answer user questions about our credit card and investment products.
-Always explain clearly, concisely, and with professional tone.
+You are a specialized Fintech assistant.
+Answer questions based only on the provided Fintech information.
+Explain clearly, concisely, and professionally.
 User question: {user_query}
 Answer:
 """
 
 # -----------------------------
-# Conversational RAG chain
+# Conversational Retrieval Chain (RAG)
 # -----------------------------
 qa_chain = ConversationalRetrievalChain.from_llm(
     llm=llm,
@@ -101,3 +104,4 @@ user_input = st.text_input("Ask your question about our Fintech products:")
 if user_input:
     response = qa_chain.run(user_input)
     st.markdown(f"**Answer:** {response}")
+
