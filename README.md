@@ -17,8 +17,6 @@ The chatbot:
 - Daily operational cost: **before $625/day**, **after $75/day**.
 - Monthly operational cost (20 days): **before $12,500**, **after $1,500**.
 
-Impact note: these savings assume the stated AI resolution rate (70%), handling times, and 20 working days/month. Adjust any input (resolution rate, queries/day, minutes per query, cost/hour, working days) to recompute exact savings for your scenario.
-
 ---
 
 ## 🔒 Security Note
