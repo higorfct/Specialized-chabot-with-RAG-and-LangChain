@@ -9,13 +9,16 @@ The chatbot:
 - Politely refuses to answer irrelevant questions.  
 - Maintains **conversational memory** across sessions.  
 
+---
 
+## ✅ Simulated Impact  
+By automating **~30% of customer support interactions**, the chatbot delivers:  
 
-**Final summarized results (artificial scenario):**
-- Time saved: **~36.67 hours per day** (≈ **733.33 hours/month**, **8,800 hours/year**).
-- Money saved: **$11,000 per month** → **$132,000 per year**.
-- Daily operational cost: **before $625/day**, **after $75/day**.
-- Monthly operational cost (20 days): **before $12,500**, **after $1,500**.
+- **Time saved:** ~36.67 hours/day (≈ **733.33 hours/month**, **8,800 hours/year**)  
+- **Cost savings:** ~$11,000 per month (≈ **$132,000 per year**)  
+- **Operational cost reduction:**  
+  - Before: $625/day (≈ $12,500/month)  
+  - After: $75/day (≈ $1,500/month)  
 
 ---
 
