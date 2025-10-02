@@ -12,13 +12,6 @@ env/
 .venv/
 .env/
 
-# Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
-# Jupyter output (execution metadata)
-# Remove this line if you want to version-control your notebooks
-*.ipynb  
-
 # Logs and temporary files
 *.log
 *.out
