@@ -1,0 +1,55 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Jupyter output (execution metadata)
+# Remove this line if you want to version-control your notebooks
+*.ipynb  
+
+# Logs and temporary files
+*.log
+*.out
+*.err
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE and editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Packaging and build
+pip-wheel-metadata/
+pip-log.txt
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Secrets and environment variables
+.env.local
+.env.*.local
+secrets.json
+config_private.py
+
+# LangChain / RAG caches and embeddings (if generated locally)
+cache/
+*.db
+embeddings/
+models/
