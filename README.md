@@ -1,48 +1,58 @@
-# Specialized RAG Agent for Fintech Customer Support  
+# 🧠 Fintech Customer Support RAG Agent  
 
-## 📌 Project Overview  
-This project implements a **Retrieval-Augmented Generation (RAG) chatbot** specialized in **customer support for fintech financial products**.  
-The agent uses **LangChain**, **OpenAI GPT models**, and **FAISS vector stores** to provide accurate answers based on a reference PDF (`fintech_manual.pdf`).  
+## 📘 Overview  
+This project implements a **Large Language Model (LLM)** chatbot using a **Retrieval-Augmented Generation (RAG)** architecture, developed in the simulated context of a **fintech company**.  
+The agent is designed to **automate part of customer support**, providing accurate and contextualized answers about financial products, onboarding, security, and compliance.  
 
-The chatbot:  
-- Answers questions about **credit cards, investment products, onboarding, security, compliance, and customer support**.  
-- Politely refuses to answer irrelevant questions.  
-- Maintains **conversational memory** across sessions.  
+By combining **natural language generation** with **information retrieval** from a reference document (`fintech_manual.pdf`), the system delivers consistent and policy-aligned responses.  
 
 ---
 
-## ✅ Simulated Impact  
-By automating **~30% of customer support interactions**, the chatbot delivers:  
-
-- **Time saved:** ~36.67 hours/day (≈ **733.33 hours/month**, **8,800 hours/year**)  
-- **Cost savings:** ~$11,000 per month (≈ **$132,000 per year**)  
-- **Operational cost reduction:**  
-  - Before: $625/day (≈ $12,500/month)  
-  - After: $75/day (≈ $1,500/month)  
-
----
-
-## 🔒 Security Note
-⚠️ Do **not** hardcode your API key in the notebook. Use environment variables or secret managers for production use.
-
----
-
-## 📌 Next Steps
-- Add a **web interface** with Streamlit or Gradio.
-- Extend support for multiple documents.
-- Enable **retrieval source citation**.
-
+## 🎯 Objectives  
+- Demonstrate the application of **RAG pipelines** in financial contexts.  
+- Reduce the average response time in support interactions.  
+- Increase **response consistency and quality** across customer inquiries.  
+- Serve as a prototype for future integration into real support environments.  
 
 ---
 
 ## ⚙️ Tech Stack  
 - **Python**  
-- [LangChain](https://www.langchain.com/)  
-- [OpenAI API](https://platform.openai.com/)  
-- [FAISS](https://github.com/facebookresearch/faiss)  
-- [PyPDFLoader](https://pypi.org/project/pypdf/)  
+- **LangChain** – orchestration and context retrieval pipeline  
+- **OpenAI GPT Models** – natural language generation  
+- **FAISS** – vector indexing and semantic search  
+- **PyPDFLoader** – extraction and processing of the reference document  
 
 ---
 
+## 💡 Technical and Business Impact  
 
+### 📊 Business Impact  
+- **Operational efficiency:** acts as a first-line assistant, handling repetitive queries and freeing human agents for complex cases.  
+- **Cost reduction:** decreases the time and resources spent on low-value interactions.  
+- **Consistent communication:** ensures alignment with financial compliance and internal policies.  
+- **Enhanced customer experience:** faster, contextual, and human-like responses.  
 
+### 🧩 Technical Impact  
+- Modular and scalable architecture, easily extendable to new documents and domains.  
+- Strong foundation for integration with internal systems and APIs.  
+- Potential for continuous improvement through feedback and model evaluation.  
+
+---
+
+## 🚀 Next Steps  
+- Add a web interface using **Streamlit** or **Gradio**.  
+- Enable dynamic upload of multiple documents and financial domains (credit, investment, insurance).  
+- Implement **source citation** in responses.  
+- Evaluate performance metrics such as latency and contextual accuracy.  
+
+---
+
+## 🔒 Security Note  
+Never expose API keys directly in the code.  
+Use environment variables (`.env`) or secret management services such as:  
+- AWS Secrets Manager  
+- GCP Secret Manager  
+- Azure Key Vault  
+
+---
